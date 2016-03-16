@@ -24,6 +24,8 @@ import com.couchbase.client.java.PersistTo;
 import com.couchbase.client.java.ReplicateTo;
 import com.couchbase.client.java.document.JsonDocument;
 import com.couchbase.client.java.document.json.JsonObject;
+import com.couchbase.client.java.env.CouchbaseEnvironment;
+import com.couchbase.client.java.env.DefaultCouchbaseEnvironment;
 import com.yahoo.ycsb.ByteArrayByteIterator;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
@@ -49,24 +51,30 @@ public class CouchbaseClient extends DB {
 
     private static Bucket bucket;
     private static Cluster cluster;
+    private static CouchbaseEnvironment environment;
     private static PersistTo persistTo;
     private static ReplicateTo replicateTo;
 
+    private static final Object clientLock = new Object();
+
     @Override
-    public synchronized void init() throws DBException {
-        if (bucket != null) {
-            return;
+    public void init() throws DBException {
+        synchronized (clientLock) {
+            if (bucket != null) {
+                return;
+            }
+            Properties props = getProperties();
+
+            String hostname = props.getProperty("couchbase.hostname", DEFAULT_HOSTNAME);
+            String bucketName = props.getProperty("couchbase.bucket", DEFAULT_BUCKET);
+            String password = props.getProperty("couchbase.password", DEFAULT_PASSWORD);
+            persistTo = parsePersistTo(props.getProperty("couchbase.persistTo", "master"));
+            replicateTo = parseReplicateTo(props.getProperty("couchbase.replicateTo", "0"));
+
+            environment = DefaultCouchbaseEnvironment.builder().build();
+            cluster = CouchbaseCluster.create(environment, hostname);
+            bucket = cluster.openBucket(bucketName, password);
         }
-        Properties props = getProperties();
-
-        String hostname = props.getProperty("couchbase.hostname", DEFAULT_HOSTNAME);
-        String bucketName = props.getProperty("couchbase.bucket", DEFAULT_BUCKET);
-        String password = props.getProperty("couchbase.password", DEFAULT_PASSWORD);
-        persistTo = parsePersistTo(props.getProperty("couchbase.persistTo", "master"));
-        replicateTo = parseReplicateTo(props.getProperty("couchbase.replicateTo", "0"));
-
-        cluster = CouchbaseCluster.create(hostname);
-        bucket = cluster.openBucket(bucketName, password);
     }
 
     @Override
