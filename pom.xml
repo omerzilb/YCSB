@@ -38,11 +38,6 @@ LICENSE file.
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>checkstyle</groupId>
-        <artifactId>checkstyle</artifactId>
-        <version>5.0</version>
-      </dependency>
-      <dependency>
         <groupId>org.jdom</groupId>
         <artifactId>jdom</artifactId>
         <version>1.1</version>
@@ -130,15 +125,6 @@ LICENSE file.
   </modules>
 
   <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-checkstyle-plugin</artifactId>
-          <version>2.15</version>
-        </plugin>
-      </plugins>
-    </pluginManagement>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -148,22 +134,6 @@ LICENSE file.
           <source>1.7</source>
           <target>1.7</target>
         </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-checkstyle-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>validate</id>
-            <phase>validate</phase>
-            <goals>
-              <goal>check</goal>
-            </goals>
-            <configuration>
-              <configLocation>checkstyle.xml</configLocation>
-            </configuration>
-          </execution>
-        </executions>
       </plugin>
     </plugins>
   </build>
