@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CouchbaseClient extends DB {
 
@@ -56,9 +57,11 @@ public class CouchbaseClient extends DB {
     private static ReplicateTo replicateTo;
 
     private static final Object clientLock = new Object();
+    private static final AtomicInteger INIT_COUNT = new AtomicInteger(0);
 
     @Override
     public void init() throws DBException {
+        INIT_COUNT.incrementAndGet();
         synchronized (clientLock) {
             if (bucket != null) {
                 return;
@@ -79,7 +82,9 @@ public class CouchbaseClient extends DB {
 
     @Override
     public void cleanup() {
-        cluster.disconnect();
+        if (INIT_COUNT.decrementAndGet() == 0) {
+            cluster.disconnect();
+        }
     }
 
     private static PersistTo parsePersistTo(final String persistTo) {
