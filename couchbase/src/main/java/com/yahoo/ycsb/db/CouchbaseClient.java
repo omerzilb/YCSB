@@ -50,8 +50,8 @@ public class CouchbaseClient extends DB {
     private static final String DEFAULT_BUCKET = "default";
     private static final String DEFAULT_PASSWORD = "";
 
-    private static Bucket bucket;
-    private static Cluster cluster;
+    private Bucket bucket;
+    private Cluster cluster;
     private static CouchbaseEnvironment environment;
     private static PersistTo persistTo;
     private static ReplicateTo replicateTo;
@@ -63,27 +63,27 @@ public class CouchbaseClient extends DB {
     public void init() throws DBException {
         INIT_COUNT.incrementAndGet();
         synchronized (clientLock) {
-            if (bucket != null) {
-                return;
+            if (environment == null) {
+                environment = DefaultCouchbaseEnvironment.builder().build();
             }
-            Properties props = getProperties();
-
-            String hostname = props.getProperty("couchbase.hostname", DEFAULT_HOSTNAME);
-            String bucketName = props.getProperty("couchbase.bucket", DEFAULT_BUCKET);
-            String password = props.getProperty("couchbase.password", DEFAULT_PASSWORD);
-            persistTo = parsePersistTo(props.getProperty("couchbase.persistTo", "master"));
-            replicateTo = parseReplicateTo(props.getProperty("couchbase.replicateTo", "0"));
-
-            environment = DefaultCouchbaseEnvironment.builder().build();
-            cluster = CouchbaseCluster.create(environment, hostname);
-            bucket = cluster.openBucket(bucketName, password);
         }
+        Properties props = getProperties();
+
+        String hostname = props.getProperty("couchbase.hostname", DEFAULT_HOSTNAME);
+        String bucketName = props.getProperty("couchbase.bucket", DEFAULT_BUCKET);
+        String password = props.getProperty("couchbase.password", DEFAULT_PASSWORD);
+        persistTo = parsePersistTo(props.getProperty("couchbase.persistTo", "master"));
+        replicateTo = parseReplicateTo(props.getProperty("couchbase.replicateTo", "0"));
+
+        cluster = CouchbaseCluster.create(environment, hostname);
+        bucket = cluster.openBucket(bucketName, password);
     }
 
     @Override
     public void cleanup() {
+        cluster.disconnect();
         if (INIT_COUNT.decrementAndGet() == 0) {
-            cluster.disconnect();
+            environment.shutdown();
         }
     }
 
