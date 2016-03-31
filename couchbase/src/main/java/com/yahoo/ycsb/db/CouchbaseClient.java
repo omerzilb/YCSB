@@ -28,11 +28,15 @@ import com.yahoo.ycsb.ByteArrayByteIterator;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
+import com.yahoo.ycsb.Status;
 import com.yahoo.ycsb.StringByteIterator;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.Vector;
 
 public class CouchbaseClient extends DB {
 
@@ -53,19 +57,20 @@ public class CouchbaseClient extends DB {
         if (bucket != null) {
             return;
         }
+        Properties props = getProperties();
 
-        String hostname = getProperties().getProperty("couchbase.hostname", DEFAULT_HOSTNAME);
-        String bucketName = getProperties().getProperty("couchbase.bucket", DEFAULT_BUCKET);
-        String password = getProperties().getProperty("couchbase.password", DEFAULT_PASSWORD);
-        persistTo = parsePersistTo(getProperties().getProperty("couchbase.persistTo", "master"));
-        replicateTo = parseReplicateTo(getProperties().getProperty("couchbase.replicateTo", "0"));
+        String hostname = props.getProperty("couchbase.hostname", DEFAULT_HOSTNAME);
+        String bucketName = props.getProperty("couchbase.bucket", DEFAULT_BUCKET);
+        String password = props.getProperty("couchbase.password", DEFAULT_PASSWORD);
+        persistTo = parsePersistTo(props.getProperty("couchbase.persistTo", "master"));
+        replicateTo = parseReplicateTo(props.getProperty("couchbase.replicateTo", "0"));
 
         cluster = CouchbaseCluster.create(hostname);
         bucket = cluster.openBucket(bucketName, password);
     }
 
     @Override
-    public void cleanup() throws DBException {
+    public void cleanup() {
         cluster.disconnect();
     }
 
@@ -98,60 +103,43 @@ public class CouchbaseClient extends DB {
     }
 
     @Override
-    public int readOne(String table, String key, String field, Map<String, ByteIterator> result) {
-        return read(table, key, field, result);
-    }
-
-    @Override
-    public int readAll(String table, String key, Map<String, ByteIterator> result) {
-        return read(table, key, null, result);
-    }
-
-    private int read(String table, String key, String field, Map<String, ByteIterator> result) {
+    public Status read(final String table, final String key, final Set<String> fields,
+                       final HashMap<String, ByteIterator> result) {
         try {
             String id = generateId(table, key);
             JsonDocument foundDocument = bucket.get(id);
             if (foundDocument == null) {
                 System.out.println("Key not found, please check loaded data: " + key);
-                return ERROR;
+                return Status.ERROR;
             }
 
             JsonObject content = foundDocument.content();
-            if (field == null) {
+            if (fields == null) {
                 for (String name : content.getNames()) {
                     result.put(name, new ByteArrayByteIterator(content.getString(name).getBytes()));
                 }
             } else {
-                result.put(field, new ByteArrayByteIterator(content.getString(field).getBytes()));
+                for (String field : fields) {
+                    result.put(field, new ByteArrayByteIterator(content.getString(field).getBytes()));
+                }
             }
 
-            return OK;
+            return Status.OK;
         } catch (Exception ex) {
             ex.printStackTrace();
             System.out.println("Error reading key: " + key);
-            return ERROR;
+            return Status.ERROR;
         }
     }
 
     @Override
-    public int scanAll(String table, String startkey, int recordcount,
-        List<Map<String, ByteIterator>> result) {
+    public Status scan(final String table, final String startkey, final int recordcount,
+	    final Set<String> fields, final Vector<HashMap<String, ByteIterator>> result) {
         throw new IllegalStateException("Range scan will be implemented soon (view/n1ql).");
     }
 
     @Override
-    public int scanOne(String table, String startkey, int recordcount, String field,
-        List<Map<String, ByteIterator>> result) {
-        throw new IllegalStateException("Range scan will be implemented soon (view/n1ql.");
-    }
-
-    @Override
-    public int updateOne(String table, String key, String field, ByteIterator value) {
-        return updateAll(table, key, Collections.singletonMap(field, value));
-    }
-
-    @Override
-    public int updateAll(String table, String key, Map<String, ByteIterator> values) {
+    public Status update(final String table, final String key, final HashMap<String, ByteIterator> values) {
         try {
             String id = generateId(table, key);
             JsonObject content = JsonObject.empty();
@@ -160,16 +148,16 @@ public class CouchbaseClient extends DB {
                 content.put(value.getKey(), value.getValue());
             }
             bucket.replace(JsonDocument.create(id, content), persistTo, replicateTo);
-            return OK;
+            return Status.OK;
         } catch (Exception ex) {
             ex.printStackTrace();
             System.out.println("Error updating key: " + key);
-            return ERROR;
+            return Status.ERROR;
         }
     }
 
     @Override
-    public int insert(String table, String key, Map<String, ByteIterator> values) {
+    public Status insert(final String table, final String key, final HashMap<String, ByteIterator> values) {
         try {
             String id = generateId(table, key);
             JsonObject content = JsonObject.empty();
@@ -178,24 +166,24 @@ public class CouchbaseClient extends DB {
                 content.put(value.getKey(), value.getValue());
             }
             bucket.insert(JsonDocument.create(id, content), persistTo, replicateTo);
-            return OK;
+            return Status.OK;
         } catch (Exception ex) {
             ex.printStackTrace();
             System.out.println("Error inserting key: " + key);
-            return ERROR;
+            return Status.ERROR;
         }
     }
 
     @Override
-    public int delete(String table, String key) {
+    public Status delete(final String table, final String key) {
         try {
             String id = generateId(table, key);
             bucket.remove(id, persistTo, replicateTo);
-            return OK;
+            return Status.OK;
         } catch (Exception ex) {
             ex.printStackTrace();
             System.out.println("Error deleting key: " + key);
-            return ERROR;
+            return Status.ERROR;
         }
     }
 
