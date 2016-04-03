@@ -26,6 +26,7 @@ import com.couchbase.client.java.document.JsonDocument;
 import com.couchbase.client.java.document.json.JsonObject;
 import com.couchbase.client.java.env.CouchbaseEnvironment;
 import com.couchbase.client.java.env.DefaultCouchbaseEnvironment;
+import com.couchbase.client.core.time.Delay;
 import com.yahoo.ycsb.ByteArrayByteIterator;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
@@ -40,6 +41,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 
 public class CouchbaseClient extends DB {
 
@@ -62,18 +64,29 @@ public class CouchbaseClient extends DB {
     @Override
     public void init() throws DBException {
         INIT_COUNT.incrementAndGet();
-        synchronized (clientLock) {
-            if (environment == null) {
-                environment = DefaultCouchbaseEnvironment.builder().build();
-            }
-        }
         Properties props = getProperties();
 
         String hostname = props.getProperty("couchbase.hostname", DEFAULT_HOSTNAME);
         String bucketName = props.getProperty("couchbase.bucket", DEFAULT_BUCKET);
         String password = props.getProperty("couchbase.password", DEFAULT_PASSWORD);
+        int delayUs = Integer.parseInt(props.getProperty("couchbase.observeintervaldelayus", "0"));
         persistTo = parsePersistTo(props.getProperty("couchbase.persistTo", "master"));
         replicateTo = parseReplicateTo(props.getProperty("couchbase.replicateTo", "0"));
+
+        synchronized (clientLock) {
+            if (environment == null) {
+                if (delayUs == 0) {
+                    environment = DefaultCouchbaseEnvironment
+                        .builder()
+                        .build();
+                } else {
+                    environment = DefaultCouchbaseEnvironment
+                        .builder()
+                        .observeIntervalDelay(Delay.fixed(delayUs, TimeUnit.MICROSECONDS))
+                        .build();
+                }
+            }
+        }
 
         cluster = CouchbaseCluster.create(environment, hostname);
         bucket = cluster.openBucket(bucketName, password);
